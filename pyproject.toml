@@ -48,8 +48,6 @@ packages = ["src/release_monitor"]
 line-length = 100
 target-version = "py314"
 src = ["src", "tests"]
-# Legacy single-file implementation; removed once the package fully replaces it.
-extend-exclude = ["monitor.py", "test_monitor.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "S", "RUF", "PTH"]
