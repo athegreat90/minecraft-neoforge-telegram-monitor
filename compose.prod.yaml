@@ -1,0 +1,62 @@
+# Production deployment from the published image: no local build, only this file and a .env.
+#
+#   docker compose -f compose.prod.yaml run --rm release-monitor test-telegram
+#   docker compose -f compose.prod.yaml up -d
+#
+# IMAGE_TAG: `1` follows the latest 1.x release. For fully reproducible deployments pin an
+# exact version (IMAGE_TAG=1.0.0) or an immutable commit tag (IMAGE_TAG=sha-<commit>); rolling
+# back is just setting the previous tag and running `docker compose up -d` again.
+#
+# Data lives in the named volume `releases-data`. If you bind-mount a host directory instead,
+# it must be writable by uid/gid 10001:  sudo chown 10001:10001 /path/to/data
+#
+# The project name (and so the volume name) comes from the directory this file lives in; keep
+# the directory name stable, or pass `-p <name>`, to keep using the same data.
+
+services:
+  release-monitor:
+    image: ghcr.io/athegreat90/minecraft-neoforge-telegram-monitor:${IMAGE_TAG:-1}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Add token to .env}
+      MINECRAFT_CHANNEL_ID: ${MINECRAFT_CHANNEL_ID:?Add channel to .env}
+      NEOFORGE_CHANNEL_ID: ${NEOFORGE_CHANNEL_ID:?Add channel to .env}
+      MINECRAFT_SNAPSHOTS: ${MINECRAFT_SNAPSHOTS:-false}
+      MINECRAFT_PRERELEASES: ${MINECRAFT_PRERELEASES:-false}
+      NEOFORGE_BETAS: ${NEOFORGE_BETAS:-true}
+      NEOFORGE_MIN_MAJOR: ${NEOFORGE_MIN_MAJOR:-26}
+      POLL_SECONDS: ${POLL_SECONDS:-300}
+      CHANGELOG_GRACE_MINUTES: ${CHANGELOG_GRACE_MINUTES:-30}
+      AMBIGUOUS_POLICY: ${AMBIGUOUS_POLICY:-retry}
+      DISPLAY_TIMEZONE: ${DISPLAY_TIMEZONE:-UTC}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-25}
+    # To keep the token out of `docker inspect`, use a Docker secret: delete the
+    # TELEGRAM_BOT_TOKEN line above, add `TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token`
+    # under `environment`, then uncomment the next line and the top-level `secrets:` block below.
+    # secrets: [telegram_bot_token]
+    volumes:
+      - releases-data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  releases-data:
+
+# secrets:
+#   telegram_bot_token:
+#     file: ./secrets/telegram_bot_token.txt   # git-ignored; chmod 600
