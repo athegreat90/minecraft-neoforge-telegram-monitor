@@ -1,0 +1,40 @@
+.git
+.github
+
+# Environment variables and secrets must never enter the build context
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.secret
+secrets/
+credentials/
+
+# Databases and runtime state
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Python and tooling caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Not needed in the image
+tests/
+docs/
+odd/
+.atl/
+.claude/
+.idea/
+.vscode/

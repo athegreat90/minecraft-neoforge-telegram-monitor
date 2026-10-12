@@ -1,0 +1,24 @@
+services:
+  release-monitor:
+    build: .
+    image: minecraft-neoforge-release-monitor:local
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Add token to .env}
+      MINECRAFT_CHANNEL_ID: ${MINECRAFT_CHANNEL_ID:?Add channel to .env}
+      NEOFORGE_CHANNEL_ID: ${NEOFORGE_CHANNEL_ID:?Add channel to .env}
+      MINECRAFT_SNAPSHOTS: ${MINECRAFT_SNAPSHOTS:-false}
+      NEOFORGE_BETAS: ${NEOFORGE_BETAS:-true}
+      NEOFORGE_MIN_MAJOR: ${NEOFORGE_MIN_MAJOR:-26}
+      POLL_SECONDS: ${POLL_SECONDS:-300}
+      TZ: Europe/Madrid
+    volumes:
+      - releases-data:/data
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+
+volumes:
+  releases-data:

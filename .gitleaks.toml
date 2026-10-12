@@ -1,0 +1,12 @@
+title = "minecraft-neoforge-telegram-monitor gitleaks config"
+
+[extend]
+useDefault = true
+
+# Only the placeholder-only templates are allowlisted. A real .env is never allowed.
+[[allowlists]]
+description = "Placeholder-only environment templates"
+paths = [
+  '''^\.env\.example$''',
+  '''^docs/env\.example$''',
+]
