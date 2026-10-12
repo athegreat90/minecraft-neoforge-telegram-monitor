@@ -62,6 +62,16 @@ class FakeWeb:
         body = content if content is not None else (text or "").encode("utf-8")
         self._routes[(method, url)] = httpx.Response(status, content=body, headers=headers)
 
+    def route(
+        self, url: str, handler: Callable[[httpx.Request], httpx.Response], *, method: str = "GET"
+    ) -> None:
+        """Answer ``(method, url)`` with ``handler(request)``."""
+        self._routes[(method, url)] = handler
+
+    def remove(self, url: str, *, method: str = "GET") -> None:
+        """Forget a route, so the URL answers 404 again."""
+        self._routes.pop((method, url), None)
+
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         url = str(request.url)

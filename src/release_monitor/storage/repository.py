@@ -159,6 +159,14 @@ class Repository:
             raise StorageError("insert did not return a row id")
         return cursor.lastrowid
 
+    def has_notification(self, source: Source, version: str) -> bool:
+        """Whether this release was ever queued for announcement (in any state)."""
+        row = self._conn.execute(
+            "SELECT 1 FROM notifications WHERE source = ? AND version = ?",
+            (source.value, version),
+        ).fetchone()
+        return row is not None
+
     def claim_next_due(self, now: datetime) -> Notification | None:
         """Atomically move the oldest due ``pending`` row to ``sending`` and return it."""
         stamp = to_iso(now)

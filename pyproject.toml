@@ -24,6 +24,9 @@ dependencies = [
     "tzdata>=2025.2",
 ]
 
+[project.scripts]
+release-monitor = "release_monitor.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/athegreat90/minecraft-neoforge-telegram-monitor"
 Issues = "https://github.com/athegreat90/minecraft-neoforge-telegram-monitor/issues"
