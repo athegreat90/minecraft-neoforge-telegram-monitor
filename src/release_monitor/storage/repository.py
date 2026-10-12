@@ -177,6 +177,16 @@ class Repository:
             )
         return self.get_notification(row["id"])
 
+    def update_payload(self, notification_id: int, payload: str) -> None:
+        """Persist delivery progress of a multi-part message while it is being sent."""
+        with transaction(self._conn):
+            self._transition(
+                notification_id,
+                {NotificationState.SENDING},
+                "payload = ?, updated_at = ?",
+                (payload, to_iso(self._clock())),
+            )
+
     def mark_sent(self, notification_id: int, message_id: int | None, now: datetime) -> None:
         stamp = to_iso(now)
         with transaction(self._conn):
