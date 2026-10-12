@@ -73,5 +73,6 @@ source = ["release_monitor"]
 branch = true
 
 [tool.coverage.report]
+fail_under = 85
 show_missing = true
 skip_covered = false

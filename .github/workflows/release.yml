@@ -1,0 +1,64 @@
+name: Release
+
+# release-please turns Conventional Commits on main into a release pull request. Merging that
+# pull request creates the vX.Y.Z tag and GitHub Release, then this workflow publishes the image.
+#
+# Why the publish step is a direct call and not "on: push: tags":
+#   a tag or release created with the workflow's GITHUB_TOKEN does NOT trigger other workflows,
+#   so docker-publish.yml is called here (workflow_call) with the new tag instead.
+#
+# Known limitation: for the same reason, the release pull request itself does not get CI runs
+# started automatically. If the required checks are missing on it, start them yourself:
+#   gh workflow run ci.yml --ref release-please--branches--main
+# (checks created that way attach to the branch head commit and satisfy the ruleset).
+#
+# First release: release-please-config.json carries "release-as": "1.0.0". Remove that line
+# after v1.0.0 is out, otherwise every following release would try to stay at 1.0.0.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: release-please
+    if: github.repository == 'athegreat90/minecraft-neoforge-telegram-monitor'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish-image:
+    name: Publish release image
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+      packages: write
+      attestations: write
+      id-token: write
+    # The newer `$/` self-repository form is not confirmed by GitHub's own docs yet, so keep `./`.
+    uses: ./.github/workflows/docker-publish.yml # zizmor: ignore[self-repository]
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
