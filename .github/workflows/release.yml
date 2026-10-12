@@ -7,13 +7,15 @@ name: Release
 #   a tag or release created with the workflow's GITHUB_TOKEN does NOT trigger other workflows,
 #   so docker-publish.yml is called here (workflow_call) with the new tag instead.
 #
-# Known limitation: for the same reason, the release pull request itself does not get CI runs
-# started automatically. If the required checks are missing on it, start them yourself:
-#   gh workflow run ci.yml --ref release-please--branches--main
-# (checks created that way attach to the branch head commit and satisfy the ruleset).
+# Why the sync-lock job exists:
+#   release-please bumps the version in pyproject.toml, but uv.lock also records the project's own
+#   version and release-please cannot edit it (its TOML updater does not handle the [[package]]
+#   array). Without the sync, `uv lock --check` fails on every release pull request.
 #
-# First release: release-please-config.json carries "release-as": "1.0.0". Remove that line
-# after v1.0.0 is out, otherwise every following release would try to stay at 1.0.0.
+# Known limitation: for the same GITHUB_TOKEN reason, neither the release pull request nor the
+# lock sync commit starts CI runs. After the release pull request appears (or is updated), close
+# and reopen it yourself so the required checks run as a real pull_request event:
+#   gh pr close <n> && gh pr reopen <n>
 
 on:
   push:
@@ -39,6 +41,8 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      prs_created: ${{ steps.release.outputs.prs_created }}
+      pr_branch: ${{ steps.release.outputs.prs != '' && fromJSON(steps.release.outputs.prs)[0].headBranchName || '' }}
     steps:
       - name: Run release-please
         id: release
@@ -47,6 +51,44 @@ jobs:
           token: ${{ github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  sync-lock:
+    name: Sync uv.lock on release PR
+    needs: release-please
+    if: needs.release-please.outputs.prs_created == 'true' && needs.release-please.outputs.pr_branch != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      UV_VERSION: "0.13.0"
+      RELEASE_BRANCH: ${{ needs.release-please.outputs.pr_branch }}
+    steps:
+      - name: Check out the release branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          persist-credentials: false
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      - name: Refresh uv.lock and push it if it changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          uv lock
+          if git diff --quiet -- uv.lock; then
+            echo "uv.lock already matches pyproject.toml; nothing to push."
+            exit 0
+          fi
+          git diff --stat -- uv.lock
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore: sync uv.lock with the release version"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git" "HEAD:refs/heads/${RELEASE_BRANCH}"
 
   publish-image:
     name: Publish release image
