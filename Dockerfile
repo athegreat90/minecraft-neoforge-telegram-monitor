@@ -41,6 +41,11 @@ RUN groupadd --system --gid 10001 monitor \
 
 COPY --from=builder /app/.venv /app/.venv
 
+# The app runs from /app/.venv and never needs pip at runtime. Removing the base image's pip also
+# removes its vendored libraries (msgpack, urllib3, ...), which image scanners report as CVEs.
+RUN python -m pip uninstall --yes pip \
+    && ! python -m pip --version > /dev/null 2>&1
+
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
