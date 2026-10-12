@@ -1,24 +1,57 @@
+# Development / build-it-yourself deployment. For a published image use compose.prod.yaml.
+#
+#   cp docs/env.example .env && chmod 600 .env     # then edit the three required values
+#   docker compose run --rm release-monitor test-telegram
+#   docker compose up -d --build
+#
+# NOTE: the project name (and so the volume name) comes from this directory's name. An existing
+# deployment keeps its data as long as it is started from the same directory name.
+
 services:
   release-monitor:
     build: .
-    image: minecraft-neoforge-release-monitor:local
+    image: minecraft-neoforge-telegram-monitor:local
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Add token to .env}
       MINECRAFT_CHANNEL_ID: ${MINECRAFT_CHANNEL_ID:?Add channel to .env}
       NEOFORGE_CHANNEL_ID: ${NEOFORGE_CHANNEL_ID:?Add channel to .env}
       MINECRAFT_SNAPSHOTS: ${MINECRAFT_SNAPSHOTS:-false}
+      MINECRAFT_PRERELEASES: ${MINECRAFT_PRERELEASES:-false}
       NEOFORGE_BETAS: ${NEOFORGE_BETAS:-true}
       NEOFORGE_MIN_MAJOR: ${NEOFORGE_MIN_MAJOR:-26}
       POLL_SECONDS: ${POLL_SECONDS:-300}
-      TZ: Europe/Madrid
+      CHANGELOG_GRACE_MINUTES: ${CHANGELOG_GRACE_MINUTES:-30}
+      AMBIGUOUS_POLICY: ${AMBIGUOUS_POLICY:-retry}
+      DISPLAY_TIMEZONE: ${DISPLAY_TIMEZONE:-UTC}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-25}
+    # To keep the token out of `docker inspect`, use a Docker secret: delete the
+    # TELEGRAM_BOT_TOKEN line above, add `TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token`
+    # under `environment`, then uncomment the next line and the top-level `secrets:` block below.
+    # secrets: [telegram_bot_token]
     volumes:
       - releases-data:/data
+    read_only: true
+    cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
 volumes:
   releases-data:
+
+# secrets:
+#   telegram_bot_token:
+#     file: ./secrets/telegram_bot_token.txt   # git-ignored; chmod 600

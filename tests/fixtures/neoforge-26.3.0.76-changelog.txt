@@ -1,0 +1,12 @@
+ - `26.3.0.76` Change changelog base tag to 26.3.0 (#3635)
+ - `26.3.0.75-beta` Add builder bifunction variant for EntityType DR registration (#2770)
+ - `26.3.0.74-beta` Refactor AbstractWidget#getFGColor as getLabelTextColor (#3063)
+   
+   Co-authored-by: sciwhiz12 <contributor@example.invalid>
+ - `26.3.0.73-beta` Fix several minor issues with the enchanted loot events (#3620)
+ - `26.3.0.72-beta` [26.3.x] Update dependency FancyModLoader to v12.0.12 (#3630)
+ - `26.3.0.71-beta` Update Gradle and dependencies (#3631)
+ - `26.3.0.70-beta` Add GetEquipmentDropChanceEvent to allow mods to control chances of mobs dropping equipment (#3617)
+ - `26.3.0.69-beta` [26.3] Fix various issues with stencil support (#3510)
+   
+   Co-authored-by: RogueLogix <contributor@example.invalid>

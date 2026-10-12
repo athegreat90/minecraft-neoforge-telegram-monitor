@@ -1,0 +1,148 @@
+// Renovate is the ONLY dependency updater for this repository (no dependabot.yml, no custom
+// Python-update workflow). Dependabot *alerts* may stay on; Dependabot version/security
+// update PRs must stay off so the two tools never open competing pull requests.
+//
+// Python upgrades work like this:
+//   .python-version        -> pyenv manager, docker datasource: only versions whose official
+//                             python image tag exists are proposed (so 3.15 appears by itself
+//                             once python:3.15-slim is published, not when python.org tags it)
+//   Dockerfile             -> native manager, `FROM python:X.Y.Z-slim@sha256:...` in both stages
+//   groupName "python"     -> both bumps land in ONE pull request, and CI's "current" test job
+//                             reads .python-version, so that PR exercises the new interpreter
+//   requires-python        -> the supported floor; never touched automatically
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests",
+    ":semanticCommits",
+    ":dependencyDashboard",
+  ],
+  timezone: "UTC",
+  schedule: ["before 6am"], // daily, outside working hours
+  semanticCommitType: "chore",
+  semanticCommitScope: "deps",
+  labels: ["dependencies"],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+  rebaseWhen: "behind-base-branch",
+  minimumReleaseAge: "3 days", // gives yanked or broken releases time to be pulled
+  internalChecksFilter: "strict", // do not open PRs for versions that are still too young
+
+  // Security fixes are prioritised but go through exactly the same required checks.
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ["dependencies", "security"],
+    minimumReleaseAge: null,
+    schedule: ["at any time"],
+    automerge: false,
+  },
+
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on monday"],
+    commitMessageAction: "refresh",
+    automerge: true,
+  },
+
+  "pre-commit": { enabled: true },
+
+  packageRules: [
+    {
+      description: "Runtime dependencies are shipped in the image: conventional type fix(deps)",
+      matchManagers: ["pep621"],
+      matchDepTypes: ["project.dependencies"],
+      semanticCommitType: "fix",
+    },
+    {
+      description: "Group the development tooling together",
+      matchManagers: ["pep621"],
+      matchDepTypes: ["dependency-groups"],
+      groupName: "dev dependencies",
+      automerge: true,
+      matchUpdateTypes: ["minor", "patch"],
+    },
+    {
+      description: "One pull request for the Python interpreter: .python-version + Dockerfile",
+      matchDepNames: ["python"],
+      matchManagers: ["pyenv", "dockerfile"],
+      groupName: "python",
+      groupSlug: "python",
+      semanticCommitType: "fix",
+      // Only stable X.Y.Z releases (optionally with the -slim suffix of the Docker tag).
+      allowedVersions: "/^\\d+\\.\\d+\\.\\d+(-slim)?$/",
+      ignoreUnstable: true,
+    },
+    {
+      description: "Python patch releases: PR, merged automatically once required checks pass",
+      matchDepNames: ["python"],
+      matchManagers: ["pyenv", "dockerfile"],
+      matchUpdateTypes: ["patch", "digest", "pin", "pinDigest"],
+      labels: ["dependencies", "python-patch"],
+      automerge: true,
+      minimumReleaseAge: "3 days",
+    },
+    {
+      description: "New Python feature release (for example 3.14 -> 3.15): manual review only",
+      matchDepNames: ["python"],
+      matchManagers: ["pyenv", "dockerfile"],
+      matchUpdateTypes: ["minor", "major"],
+      labels: ["dependencies", "python-feature-upgrade"],
+      automerge: false,
+      minimumReleaseAge: "7 days",
+      prBodyNotes: [
+        "**Manual review required.** This is a new Python feature release. Read the official release notes (https://docs.python.org/3/whatsnew/) and check that all required CI checks pass on this branch before merging.",
+      ],
+    },
+    {
+      description: "GitHub Actions: digest pinned, patch and digest bumps merge automatically",
+      matchManagers: ["github-actions"],
+      groupName: "github actions",
+      matchUpdateTypes: ["patch", "digest", "pin", "pinDigest"],
+      automerge: true,
+    },
+    {
+      description: "Docker base images other than python: digest bumps only merge automatically",
+      matchManagers: ["dockerfile", "docker-compose"],
+      matchDepNames: ["!python"],
+      matchUpdateTypes: ["digest", "pin", "pinDigest"],
+      automerge: true,
+    },
+    {
+      description: "uv is pinned in the Dockerfile and in CI workflow env: review manually",
+      matchDepNames: ["ghcr.io/astral-sh/uv", "astral-sh/uv"],
+      groupName: "uv",
+      automerge: false,
+    },
+    {
+      description: "Binaries downloaded in workflows are checksum pinned: a human must update the SHA-256 too",
+      matchManagers: ["custom.regex"],
+      matchDepNames: ["!astral-sh/uv"], // uv is verified by setup-uv, no checksum in the workflow
+      automerge: false,
+      labels: ["dependencies", "needs-checksum-update"],
+      prBodyNotes: [
+        "**This tool is pinned together with a SHA-256 checksum in the workflow.** Update the checksum from the release's checksum file before merging, otherwise the install step fails on purpose.",
+      ],
+    },
+  ],
+
+  customManagers: [
+    {
+      description: "Tool versions annotated with '# renovate: datasource=... depName=...' in workflows",
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\n\\s*[A-Z0-9_]+_VERSION: \"(?<currentValue>[^\"]+)\"",
+      ],
+    },
+    {
+      description: "UV_VERSION in workflow env blocks",
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      matchStrings: ["UV_VERSION: \"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "astral-sh/uv",
+      datasourceTemplate: "github-releases",
+    },
+  ],
+}
