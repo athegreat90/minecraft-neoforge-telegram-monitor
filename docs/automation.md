@@ -140,13 +140,19 @@ Releases are driven by [release-please](https://github.com/googleapis/release-pl
    calls `docker-publish.yml` for that tag. The call is explicit because tags and releases created with the default
    `GITHUB_TOKEN` do not trigger other workflows.
 
-**First release.** `release-please-config.json` contains `"release-as": "1.0.0"` so the first release is v1.0.0. After v1.0.0 is
-released, **delete that line**, otherwise every later release would stay at 1.0.0.
+**First release.** v1.0.0 was released with a temporary `release-as` setting, which has since been removed from
+`release-please-config.json`; versions now follow the conventional commits (`fix` = patch, `feat` = minor, breaking change
+= major).
 
-**CI on release pull requests.** Pull requests created with `GITHUB_TOKEN` do not start the pull-request workflows, so the
-required checks stay pending. Workarounds: run `gh workflow run ci.yml --ref release-please--branches--main` (documented,
-not tested), close and reopen the pull request, or give release-please a GitHub App / personal access token. Check
-which works for you on the first release.
+**`uv.lock` and the release version.** `uv.lock` records the project's own version, and release-please cannot edit it. The
+`sync-lock` job in `release.yml` runs `uv lock` on the release branch and pushes the result, so `uv lock --check` in CI keeps
+passing. (During the v1.0.0 release this was done by hand, because CI caught the stale lock file.)
+
+**CI on release pull requests.** Pull requests and pushes made with `GITHUB_TOKEN` do not start the pull-request workflows,
+so the required checks stay pending. **After the release pull request appears or changes, close and reopen it** (`gh pr
+close <n> && gh pr reopen <n>`): reopening as yourself starts a real `pull_request` run, and all required checks, including
+`PR title`, report. This worked for v1.0.0. Running `gh workflow run ci.yml` on the release branch is *not* enough, because the
+`PR title` check only runs on pull-request events. Alternatively give release-please a GitHub App or personal access token.
 
 ## Dependency and Python updates (Renovate)
 
